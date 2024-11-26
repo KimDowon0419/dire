@@ -2,11 +2,16 @@ package com.dowon.ai_dire_service.controller;
 
 import com.dowon.ai_dire_service.domain.Diary;
 import com.dowon.ai_dire_service.service.DiaryService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 일기 관련 REST API를 제공하는 컨트롤러 클래스입니다.
@@ -25,12 +30,13 @@ public class DiaryController {
      * 새로운 일기를 작성합니다.
      *
      * @param diary 작성할 일기 객체
+     * @param jwt   인증된 사용자 정보가 담긴 JWT 객체
      * @return 생성된 일기 객체
      */
     @PostMapping
-    public ResponseEntity<Diary> createDiary(@Validated @RequestBody Diary diary) {
-        // TODO: 인증된 사용자 ID를 설정해야 합니다.
-        // diary.setUserId(authenticatedUserId);
+    public ResponseEntity<Diary> createDiary(@Validated @RequestBody Diary diary, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.parseLong(jwt.getSubject());
+        diary.setUserId(userId);
 
         Diary createdDiary = diaryService.createDiary(diary);
         return ResponseEntity.ok(createdDiary);
@@ -60,17 +66,30 @@ public class DiaryController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * 일기를 수정합니다.
-     *
-     * @param id    수정할 일기의 ID
-     * @param diary 수정할 내용이 담긴 일기 객체
-     * @return 수정된 일기 객체
-     */
     @PutMapping("/{id}")
-    public ResponseEntity<Diary> updateDiary(@PathVariable Long id, @Validated @RequestBody Diary diary) {
+    public ResponseEntity<Diary> updateDiary(
+            @PathVariable Long id,
+            @Validated @RequestBody Diary diary,
+            @AuthenticationPrincipal Jwt jwt) {
         try {
-            // TODO: 인증된 사용자 확인 로직 필요
+            // 인증된 사용자 ID 추출
+            Long userId = Long.parseLong(jwt.getSubject());
+
+            // 수정하려는 일기 가져오기
+            Optional<Diary> existingDiaryOpt = diaryService.getDiaryById(id);
+            if (existingDiaryOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Diary existingDiary = existingDiaryOpt.get();
+
+            // 일기의 소유자인지 확인
+            if (!existingDiary.getUserId().equals(userId)) {
+                // 소유자가 아닐 경우 403 Forbidden 반환
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // 일기 내용 업데이트
+            diary.setUserId(userId); // 사용자 ID 설정 (보안 상 중요)
             Diary updatedDiary = diaryService.updateDiary(id, diary);
             return ResponseEntity.ok(updatedDiary);
         } catch (IllegalArgumentException e) {
@@ -78,15 +97,32 @@ public class DiaryController {
         }
     }
 
+
     /**
      * 일기를 삭제합니다.
      *
-     * @param id 삭제할 일기의 ID
+     * @param id  삭제할 일기의 ID
+     * @param jwt 인증된 사용자 정보가 담긴 JWT 객체
      * @return 응답 결과
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDiary(@PathVariable Long id) {
-        // TODO: 인증된 사용자 확인 로직 필요
+    public ResponseEntity<Void> deleteDiary(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+        // 인증된 사용자 ID 추출
+        Long userId = Long.parseLong(jwt.getSubject());
+
+        // 삭제하려는 일기 가져오기
+        Optional<Diary> existingDiaryOpt = diaryService.getDiaryById(id);
+        if (existingDiaryOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Diary existingDiary = existingDiaryOpt.get();
+
+        // 일기의 소유자인지 확인
+        if (!existingDiary.getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        // 일기 삭제
         diaryService.deleteDiary(id);
         return ResponseEntity.noContent().build();
     }
