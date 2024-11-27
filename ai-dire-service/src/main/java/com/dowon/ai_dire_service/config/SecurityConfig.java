@@ -2,6 +2,7 @@ package com.dowon.ai_dire_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -13,6 +14,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
  * Spring Security 설정 클래스입니다.
  */
 @Configuration
+@Profile("!test") // 'test' 프로파일이 아닐 때만 활성화
 public class SecurityConfig {
 
     @Bean

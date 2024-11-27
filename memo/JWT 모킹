@@ -1,0 +1,7 @@
+Spring Security의 OAuth2 리소스 서버 설정에서 JWT 또는 Opaque Token 설정이 누락되었음 그래서 ai-dire-service는 빌드가 되지 않는 상태
+테스트 환경에서 보안 설정을 비활성화하거나 JWT 관련 빈을 Mocking하는 것
+추후 배포를 하게되면 문제가 없는지 확인해야함
+@Profile("test")**와 **@Profile("!test")**를 사용하여 테스트 환경과 운영 환경에서 활성화되는 설정을 분리합니다.
+운영 환경에서는 SecurityConfig가 정상적으로 로딩되며, 테스트 환경에서는 TestSecurityConfig가 로딩됩니다.
+
+

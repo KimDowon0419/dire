@@ -32,37 +32,41 @@ public class DiaryService {
     }
 
     /**
-     * 특정 ID의 일기를 조회합니다.
+     * 특정 사용자의 모든 일기 목록을 조회합니다.
      *
-     * @param id 조회할 일기의 ID
-     * @return 일기 객체
-     */
-    @Transactional(readOnly = true)
-    public Optional<Diary> getDiaryById(Long id) {
-        return diaryRepository.findById(id);
-    }
-
-    /**
-     * 모든 일기 목록을 조회합니다.
-     *
+     * @param userId 사용자 ID
      * @return 일기 리스트
      */
     @Transactional(readOnly = true)
-    public List<Diary> getAllDiaries() {
-        return diaryRepository.findAll();
+    public List<Diary> getDiariesByUserId(Long userId) {
+        return diaryRepository.findByUserId(userId);
+    }
+
+    /**
+     * 특정 ID와 사용자 ID에 해당하는 일기를 조회합니다.
+     *
+     * @param id     일기 ID
+     * @param userId 사용자 ID
+     * @return 일기 객체
+     * @throws IllegalArgumentException 일기가 존재하지 않거나 권한이 없는 경우
+     */
+    @Transactional(readOnly = true)
+    public Diary getDiaryByIdAndUserId(Long id, Long userId) {
+        return diaryRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new IllegalArgumentException("일기를 찾을 수 없거나 접근 권한이 없습니다."));
     }
 
     /**
      * 일기를 수정합니다.
      *
-     * @param id    수정할 일기의 ID
-     * @param diary 수정할 내용이 담긴 일기 객체
+     * @param id     수정할 일기의 ID
+     * @param diary  수정할 내용이 담긴 일기 객체
+     * @param userId 사용자 ID
      * @return 수정된 일기 객체
-     * @throws IllegalArgumentException 존재하지 않는 일기인 경우 예외 발생
+     * @throws IllegalArgumentException 일기가 존재하지 않거나 권한이 없는 경우
      */
-    public Diary updateDiary(Long id, Diary diary) {
-        Diary existingDiary = diaryRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 일기입니다."));
+    public Diary updateDiary(Long id, Diary diary, Long userId) {
+        Diary existingDiary = getDiaryByIdAndUserId(id, userId);
 
         existingDiary.setTitle(diary.getTitle());
         existingDiary.setContent(diary.getContent());
@@ -74,9 +78,12 @@ public class DiaryService {
     /**
      * 일기를 삭제합니다.
      *
-     * @param id 삭제할 일기의 ID
+     * @param id     삭제할 일기의 ID
+     * @param userId 사용자 ID
+     * @throws IllegalArgumentException 일기가 존재하지 않거나 권한이 없는 경우
      */
-    public void deleteDiary(Long id) {
-        diaryRepository.deleteById(id);
+    public void deleteDiary(Long id, Long userId) {
+        Diary existingDiary = getDiaryByIdAndUserId(id, userId);
+        diaryRepository.delete(existingDiary);
     }
 }
