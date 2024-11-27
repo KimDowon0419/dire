@@ -1,8 +1,8 @@
 package com.dowon.auth_service.security;
 
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.crypto.*;
+import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.*;
 import org.springframework.stereotype.Component;

@@ -1,14 +1,19 @@
 package com.dowon.auth_service.controller;
 
 import com.dowon.auth_service.domain.User;
-import com.dowon.auth_service.model.*;
+import com.dowon.auth_service.model.JwtAuthenticationResponse;
+import com.dowon.auth_service.model.LoginRequest;
+import com.dowon.auth_service.model.SignUpRequest;
 import com.dowon.auth_service.repository.UserRepository;
 import com.dowon.auth_service.security.JwtTokenProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.List;
