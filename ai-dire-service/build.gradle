@@ -33,6 +33,7 @@ dependencies {
 	// OAuth2 Resource Server 의존성
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.security:spring-security-oauth2-jose'
 	implementation 'com.dowon:common:1.0.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
@@ -45,3 +46,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.withType(JavaCompile) {
+	options.compilerArgs += ["-Xlint:deprecation"]
+}
+

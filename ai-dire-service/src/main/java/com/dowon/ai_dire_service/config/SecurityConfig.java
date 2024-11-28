@@ -10,9 +10,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
-/**
- * Spring Security 설정 클래스입니다.
- */
 @Configuration
 @Profile("!test") // 'test' 프로파일이 아닐 때만 활성화
 public class SecurityConfig {
@@ -22,20 +19,18 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/auth/refresh-token").permitAll() // 인증 없이 접근 허용
                         .requestMatchers("/api/diaries/**").authenticated()
                         .anyRequest().permitAll()
                 )
-                .oauth2ResourceServer(withDefaults()); // 기본 설정 사용
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(withDefaults())
+                );
         return http.build();
     }
 
-    /**
-     * JwtDecoder 빈을 정의합니다.
-     *
-     * @return JwtDecoder 객체
-     */
     @Bean
     public JwtDecoder jwtDecoder() {
-        return NimbusJwtDecoder.withJwkSetUri("http://localhost:8080/.well-known/jwks.json").build();
+        return NimbusJwtDecoder.withJwkSetUri("http://localhost:8081/api/auth/.well-known/jwks.json").build();
     }
 }

@@ -3,6 +3,7 @@ package com.dowon.auth_service.controller;
 import com.dowon.auth_service.security.JwtTokenProvider;
 import com.nimbusds.jose.jwk.*;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Map;
  * JWK Set을 제공하는 컨트롤러입니다.
  */
 @RestController
+@RequestMapping("/api/auth")
 public class JwkSetController {
 
     private final JwtTokenProvider jwtTokenProvider;
