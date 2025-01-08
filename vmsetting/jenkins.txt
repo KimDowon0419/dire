@@ -1,0 +1,137 @@
+helm으로 젠킨스 배포하기
+
+	•	우분투(Control VM)에서 하는 예시:
+
+sudo snap install helm --classic
+
+
+	•	어느 쪽이든 **kubectl**과 **helm**이 함께 동작해 클러스터에 접근 가능하면 됩니다.
+
+	2.	Helm 저장소 업데이트
+
+helm repo add jenkinsci https://charts.jenkins.io
+helm repo update
+
+2. 네임스페이스 및 Jenkins 배포
+	1.	네임스페이스 생성 (없으면 자동 생성도 가능)
+
+kubectl create namespace jenkins
+# 혹은 helm install 시 --create-namespace 옵션 사용
+
+
+	2.	Helm 차트로 Jenkins 설치 (NodePort 예시)
+
+helm install jenkins jenkinsci/jenkins \
+  --namespace jenkins \
+  --create-namespace \
+  --set controller.serviceType=NodePort \
+  --set controller.nodePort=30080
+
+	•	위 명령은 Jenkins Pod + Service(타입 NodePort)를 만듭니다.
+	•	NodePort 30080으로 노출되어, <Worker노드 IP>:30080으로 접근 가능
+
+	3.	설치 후 확인
+
+kubectl get pods -n jenkins
+# "jenkins-xxxxx" Pod가 Running 상태인지 체크
+
+Pod가 ContainerCreating → Running 되기까지 약간의 시간 소요
+
+
+쿠버네티스에서 Jenkins 파드가 계속 Pending 상태로 머무는 가장 흔한 원인은, Jenkins 차트가 요청하는 Persistent Volume(영구 스토리지)를 클러스터가 제대로 할당하지 못해서입니다. (즉, 스토리지 문제)
+
+기본적으로 Jenkins 공식 Helm 차트를 설치하면, 다음과 같은 동작이 이루어집니다.
+	1.	StatefulSet (jenkins-0) + PersistentVolumeClaim(PVC) 생성
+	2.	PVC가 “스토리지 클래스(StorageClass)”에 따라 동적 프로비저닝 혹은 수동 생성 PV 방식을 통해 **영구 볼륨(PV)**을 확보
+	3.	Jenkins Pod가 이 PV를 마운트해야 Running 상태가 됨
+
+그런데 현재 Pending 상태라는 것은, 해당 PVC가 만족되지 않아(=스토리지 프로비저닝이 불가능) Pod가 시작을 못하고 있는 것입니다.
+
+문제 진단 방법
+	1.	PVC 상태 확인
+
+kubectl get pvc -n jenkins
+
+	•	만약 jenkins라는 이름(또는 유사 이름)으로 PVC가 생성되어 있고, STATUS가 Pending이라면 스토리지 문제임이 확실해집니다.
+
+	2.	Pod 상세 정보 확인
+
+kubectl describe pod jenkins-0 -n jenkins
+
+	•	“0/2 Pending”인 이유를 “failed to provision volume” 또는 “no persistent volumes available for this claim” 등으로 볼 수 있습니다.
+
+	3.	스토리지 클래스 유무
+
+kubectl get storageclass
+
+	•	만약 아무 것도 나오지 않는다면 기본 StorageClass가 없어서 동적 프로비저닝이 불가능한 상태일 수 있습니다.
+
+해결책
+
+방법 1) Jenkins 차트에서 영구 스토리지 사용 안 함
+	•	간단 실습 용도로 영구 볼륨 없이 Jenkins를 쓰고 싶다면, Helm 설치 시 **persistence.enabled=false**를 지정해 PVC 생성을 비활성화할 수 있습니다.
+
+helm install jenkins jenkinsci/jenkins \
+  --namespace jenkins \
+  --create-namespace \
+  --set controller.serviceType=NodePort \
+  --set controller.nodePort=30080 \
+  --set persistence.enabled=false
+
+	•	이렇게 하면 PersistentVolumeClaim을 만들지 않으므로, 영구 저장공간은 없지만 Pending 없이 Pod가 바로 뜨게 됩니다.
+	•	다만 Jenkins 데이터를 VM 재시작 시 잃어버릴 수 있으니, 테스트/학습 외 목적에는 권장되지 않습니다.
+
+방법 2) 스토리지 클래스 설정 + 동적 프로비저닝(권장)
+	1.	로컬 환경(Multipass)에서 간단히 쓸 수 있는 StorageClass:
+	•	예: local-path-provisioner (Rancher에서 제공)
+	•	예: NFS를 이용한 동적 프로비저너
+	2.	local-path-provisioner 설치 예시:
+
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+# StorageClass를 기본(default)로 설정
+kubectl patch storageclass local-path \
+  -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+	•	이렇게 하면 “local-path” 스토리지 클래스가 기본으로 지정돼, PVC가 자동으로 Node의 로컬 디스크에 PV를 생성할 수 있음.
+
+	3.	Jenkins 차트 다시 설치(기존에 Pending 중인 PVC가 있으면 삭제 후 재설치)
+
+helm uninstall jenkins -n jenkins
+# PVC 등 정리 후
+helm install jenkins jenkinsci/jenkins \
+  --namespace jenkins \
+  --create-namespace \
+  --set controller.serviceType=NodePort \
+  --set controller.nodePort=30080
+
+	•	이번에는 PVC가 “local-path” StorageClass를 통해 자동으로 PV를 할당받아, Jenkins가 정상 Running 상태가 됩니다.
+
+방법 3) 수동 PV 생성 (동적 프로비저닝 없이)
+	•	동적 프로비저너를 쓰지 않고, 직접 PV를 만들어 PVC와 매칭하는 방법도 있습니다.
+	•	PVC가 예컨대 claimName: data-jenkins-0 식으로 자동 생성된다면, 그 이름에 맞춰 spec을 작성한 PV를 사전에 생성해야 합니다.
+	•	이 방식은 각 노드 경로를 수동으로 설정해줘야 해서 번거롭고 실수 가능성이 높습니다.
+
+요약
+	•	Jenkins 파드가 Pending인 가장 큰 이유는 PVC가 충족되지 않아 스케줄링이 불가능하기 때문.
+	•	Multipass + kubeadm + CRI-O 구성에는 기본 StorageClass가 없을 수 있으므로, 동적 프로비저닝(local-path-provisioner 등)을 추가하거나, 영구 스토리지 사용을 비활성화(persistence.enabled=false)하면 해결할 수 있음.
+	•	학습 용도라면 영구 스토리지 비활성화 방식이 쉽고 빠르지만, 실제 운영(CI/CD에서 Jenkins 데이터 보존)에는 동적 프로비저너나 수동 PV를 제대로 구성해야 합니다.
+
+이렇게 설정을 완료하면 Jenkins 파드가 Pending에서 Running으로 전환될 것이고, kubectl get pods -n jenkins에서 정상 작동을 확인할 수 있습니다.
+
+3. Jenkins 웹 UI 접근 & 초기 셋업
+	1.	NodePort로 접근
+	•	kubectl get nodes -o wide 명령을 통해 Worker 노드 중 하나의 IP 확인 (예: 192.168.64.3)
+	•	브라우저에서 http://192.168.64.3:30080 접속
+	•	Multipass NAT 환경에서도 호스트 ↔ VM 간엔 NodePort가 열려 있으니 접근 가능
+	2.	초기 어드민 비밀번호 확인
+
+# Jenkins Pod에 있는 "chart-admin-password" (Helm 기본 secret)
+kubectl exec -n jenkins -it deploy/jenkins -- \
+  cat /run/secrets/chart-admin-password && echo
+
+	•	출력된 문자열이 admin 계정의 임시 비밀번호
+
+	3.	Jenkins 로그인
+	•	ID: admin, PW: 위에서 구한 임시 비밀번호
+	•	필요 시 플러그인 자동 설치 진행 (기본 suggested plugins 등)
